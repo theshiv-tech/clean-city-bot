@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Clean City Operations Dashboard</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+margin:0;
+font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+background: linear-gradient(to right, #eef2f7, #f9fbfd);
+padding: 30px;
+color:#2c3e50;
+}
+
+.topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:25px;
+}
+
+.dashboard-title{
+font-size:20px;
+font-weight:600;
+}
+
+.logout-btn{
+background:#e74c3c;
+color:white;
+padding:8px 14px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+font-size:12px;
+}
+
+.logout-btn:hover{
+background:#c0392b;
+}
+
+.stats {
+display:flex;
+gap:20px;
+margin-bottom:35px;
+}
+
+.stat {
+flex:1;
+background:white;
+padding:20px;
+border-radius:12px;
+box-shadow:0 6px 18px rgba(0,0,0,0.05);
+text-align:center;
+transition:0.2s ease;
+}
+
+.stat:hover { transform:translateY(-3px); }
+
+.stat h3 { margin:0; font-size:26px; }
+
+.stat p {
+margin-top:6px;
+font-size:13px;
+color:#7f8c8d;
+}
+
+.kanban {
+display:flex;
+gap:20px;
+align-items:flex-start;
+}
+
+.column {
+flex:1;
+background:white;
+border-radius:14px;
+padding:15px;
+box-shadow:0 6px 18px rgba(0,0,0,0.05);
+min-height:500px;
+}
+
+.column h3 {
+text-align:center;
+margin-bottom:15px;
+font-size:15px;
+}
+
+.card {
+background:#ffffff;
+padding:14px;
+margin-bottom:14px;
+border-radius:10px;
+box-shadow:0 4px 10px rgba(0,0,0,0.05);
+font-size:13px;
+transition:0.2s ease;
+}
+
+.card:hover {
+transform:translateY(-2px);
+box-shadow:0 6px 15px rgba(0,0,0,0.08);
+}
+
+.priority-bar {
+height:4px;
+border-radius:4px;
+margin-bottom:8px;
+}
+
+.high { background:#e74c3c; }
+.medium { background:#f39c12; }
+.normal { background:#3498db; }
+
+.badge {
+display:inline-block;
+padding:3px 6px;
+font-size:10px;
+border-radius:12px;
+background:#ecf0f1;
+margin-top:4px;
+}
+
+select {
+width:100%;
+margin-top:6px;
+padding:5px;
+border-radius:6px;
+border:1px solid #ddd;
+font-size:12px;
+background:#fafafa;
+}
+
+button {
+margin-top:6px;
+padding:5px 8px;
+border:none;
+border-radius:6px;
+background:#2c3e50;
+color:white;
+font-size:11px;
+cursor:pointer;
+transition:0.2s ease;
+}
+
+button:hover { background:#34495e; }
+
+</style>
+</head>
+
+<body>
+
+<div class="topbar">
+<div class="dashboard-title">Clean City Operations Dashboard</div>
+<a href="/logout"><button class="logout-btn">Logout</button></a>
+</div>
+
+<div class="stats">
+<div class="stat"><h3><%= stats.total %></h3><p>Total</p></div>
+<div class="stat"><h3><%= stats.new_count %></h3><p>New</p></div>
+<div class="stat"><h3><%= stats.assigned %></h3><p>Assigned</p></div>
+<div class="stat"><h3><%= stats.in_progress %></h3><p>In Progress</p></div>
+<div class="stat"><h3><%= stats.resolved %></h3><p>Resolved</p></div>
+<div class="stat"><h3><%= stats.closed %></h3><p>Closed</p></div>
+</div>
+
+<div class="kanban">
+<div class="column" id="New"><h3>New</h3></div>
+<div class="column" id="Assigned"><h3>Assigned</h3></div>
+<div class="column" id="In Progress"><h3>In Progress</h3></div>
+<div class="column" id="Awaiting Verification"><h3>Awaiting Verification</h3></div>
+<div class="column" id="Resolved"><h3>Resolved</h3></div>
+<div class="column" id="Closed"><h3>Closed</h3></div>
+</div>
+
+<script>
+
+const transitions = {
+"New":["Assigned"],
+"Assigned":["In Progress"],
+"In Progress":["Awaiting Verification"],
+"Awaiting Verification":["Resolved"],
+"Resolved":["Closed","Reopened"],
+"Reopened":["In Progress"]
+};
+
+async function safeFetch(url,data){
+try{
+const res=await fetch(url,{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(data)
+});
+return await res.json();
+}catch(e){
+console.error(e);
+}
+}
+
+async function updateStatus(id,status){
+await safeFetch('/update-status',{complaint_id:id,next_status:status});
+refresh();
+}
+
+async function updatePriority(id,priority){
+await safeFetch('/update-priority',{complaint_id:id,priority});
+refresh();
+}
+
+async function assignOfficer(id,name){
+if(!name) return;
+await safeFetch('/assign',{complaint_id:id,assigned_to:name});
+refresh();
+}
+
+function renderCard(c){
+
+let priorityClass="normal";
+if(c.priority==="High") priorityClass="high";
+if(c.priority==="Medium") priorityClass="medium";
+
+const card=document.createElement("div");
+card.className="card";
+
+card.innerHTML=`
+<div class="priority-bar ${priorityClass}"></div>
+<strong>${c.complaint_id}</strong><br>
+<div class="badge">${c.category}</div>
+<div style="margin-top:6px;">${c.description || ""}</div>
+
+Priority:
+<select onchange="updatePriority('${c.complaint_id}',this.value)">
+<option value="Normal" ${c.priority==="Normal"?"selected":""}>Normal</option>
+<option value="Medium" ${c.priority==="Medium"?"selected":""}>Medium</option>
+<option value="High" ${c.priority==="High"?"selected":""}>High</option>
+</select>
+
+Assign Officer:
+<select onchange="assignOfficer('${c.complaint_id}',this.value)">
+<option value="">Unassigned</option>
+<option value="Officer A" ${c.assigned_to==="Officer A"?"selected":""}>Officer A</option>
+<option value="Officer B" ${c.assigned_to==="Officer B"?"selected":""}>Officer B</option>
+</select>
+`;
+
+if(transitions[c.status]){
+transitions[c.status].forEach(next=>{
+const btn=document.createElement("button");
+btn.innerText=next;
+btn.onclick=()=>updateStatus(c.complaint_id,next);
+card.appendChild(btn);
+});
+}
+
+return card;
+}
+
+async function refresh(){
+const res=await fetch('/api/complaints');
+const data=await res.json();
+
+document.querySelectorAll(".column").forEach(col=>{
+col.innerHTML="<h3>"+col.id+"</h3>";
+});
+
+data.forEach(c=>{
+const col=document.getElementById(c.status);
+if(col) col.appendChild(renderCard(c));
+});
+}
+
+refresh();
+setInterval(refresh,4000);
+
+</script>
+
+</body>
+</html>
