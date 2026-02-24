@@ -96,7 +96,7 @@ app.post('/webhook', async (req, res) => {
         if (msg.toLowerCase() === "hi" || msg.toLowerCase() === "hello") {
 
             response =
-`CLEAN CITY SUPPORT SYSTEM
+`CLEAN CITY SUPPORT SYSTEM :
 
 1. Register Complaint
 2. Check My Complaint Status
@@ -303,4 +303,8 @@ app.post('/assign', requireLogin, async (req, res) => {
     res.json({ success: true });
 });
 
-app.listen(3000, () => console.log("Server running on port 3000"));
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
